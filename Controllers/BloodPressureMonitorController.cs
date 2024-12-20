@@ -91,6 +91,7 @@ namespace IOT.Controllers
         [AllowAnonymous]
         [HttpGet]
         [MapToApiVersion("1.0")]
+        [Authorize]
         public IActionResult LoadAllV1()
         {
             // Log thông tin với Serilog Api

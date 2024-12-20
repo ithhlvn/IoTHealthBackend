@@ -28,6 +28,10 @@ internal class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+
+        // Đăng ký JwtService trong DI container
+        builder.Services.AddScoped<JwtService>();
+
         //============================
         // Cấu hình Serilog từ appsettings.json
         //============================
@@ -38,9 +42,8 @@ internal class Program
         //============================
         // Cấu hình DbContext với kết nối SQL
         //============================
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
         builder.Services.AddDbContext<IoTHealthBackendContext>(options =>
-            options.UseSqlServer(connectionString));
+            options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
         //============================
 
         //============================
@@ -132,33 +135,32 @@ internal class Program
         });
         #endregion F. Cấu hình API Versioning
 
-        #region G. Cấu hình JWT Bearer Authentication
-
-        // Cấu hình JWT
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
-            {
-                options.Authority = "https://your-identity-provider.com"; // URL của Identity Provider (Issuer)
-                options.Audience = "your-audience"; // Audience mà bạn dự định nhận token từ
-                options.RequireHttpsMetadata = false; // Chỉ để phát triển, không nên dùng trong sản phẩm
-
-                // Cấu hình các tham số xác thực token
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidIssuer = "https://your-identity-provider.com",
-                    ValidAudience = "your-audience",
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("your-secret-key"))
-                };
-            });
-        #endregion G. Cấu hình JWT Bearer Authentication
 
         //============================
         // Add services to the container.
         //============================
         builder.Services.AddControllers();
+
+        #region G. Cấu hình JWT Bearer Authentication
+        // Cấu hình dịch vụ JWT
+        builder.Services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        }).AddJwtBearer(options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                ValidAudience = builder.Configuration["Jwt:Audience"],
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+            };
+        });
+        #endregion G. Cấu hình JWT Bearer Authentication
 
         //============================
         // Thêm các dịch vụ ứng dụng vào DI container
@@ -193,6 +195,9 @@ internal class Program
             .WriteTo.Console()
             .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day));
         //============================
+
+        // Đăng ký HttpClient (sử dụng một instance HttpClient duy nhất)
+        builder.Services.AddHttpClient();
 
         var app = builder.Build();
 
